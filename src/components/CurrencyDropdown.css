@@ -1,0 +1,16 @@
+.custom-dropdown {
+    padding: 4px;
+    font-size: 16px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    margin-left: 10px;
+}
+
+.currency-dropdown {
+    display: flex;
+    align-items: center;
+}
+
+.currency-dropdown label {
+    margin-right: 10px;
+}

@@ -1,5 +1,19 @@
 import React, { createContext, useReducer } from 'react';
 
+// Utility function for currency conversion
+const convertCurrency = (amount, fromCurrency, toCurrency, conversionRates) => {
+    const rate = conversionRates[fromCurrency][toCurrency];
+    return parseFloat((amount * rate).toFixed(2));
+};
+
+// Conversion rates (for simplicity, we assume these rates)
+const conversionRates = {
+    '£': { '$': 1.39, '€': 1.16, '₹': 101.63, '£': 1 },
+    '$': { '£': 0.72, '€': 0.84, '₹': 73.08, '$': 1 },
+    '€': { '£': 0.86, '$': 1.19, '₹': 86.67, '€': 1 },
+    '₹': { '£': 0.0098, '$': 0.014, '€': 0.012, '₹': 1 },
+};
+
 // 5. The reducer - this is used to update the state, based on the action
 export const AppReducer = (state, action) => {
     let budget = 0;
@@ -7,70 +21,86 @@ export const AppReducer = (state, action) => {
         case 'ADD_EXPENSE':
             let total_budget = 0;
             total_budget = state.expenses.reduce(
-                (previousExp, currentExp) => {
-                    return previousExp + currentExp.cost
-                },0
+                (previousExp, currentExp) => previousExp + currentExp.cost,
+                0
             );
-            total_budget = total_budget + action.payload.cost;
+            total_budget += action.payload.cost;
             action.type = "DONE";
-            if(total_budget <= state.budget) {
+            if (total_budget <= state.budget) {
                 total_budget = 0;
-                state.expenses.map((currentExp)=> {
-                    if(currentExp.name === action.payload.name) {
-                        currentExp.cost = action.payload.cost + currentExp.cost;
+                state.expenses.map((currentExp) => {
+                    if (currentExp.name === action.payload.name) {
+                        currentExp.cost += action.payload.cost;
                     }
-                    return currentExp
+                    return currentExp;
                 });
-                return {
-                    ...state,
-                };
+                return { ...state };
             } else {
                 alert("Cannot increase the allocation! Out of funds");
-                return {
-                    ...state
-                }
+                return { ...state };
             }
-            case 'RED_EXPENSE':
-                const red_expenses = state.expenses.map((currentExp)=> {
+        case 'DEC_EXPENSE':
+            let total_budget_dec = 0;
+            total_budget_dec = state.expenses.reduce(
+                (previousExp, currentExp) => previousExp + currentExp.cost,
+                0
+            );
+            total_budget_dec -= action.payload.cost;
+            action.type = "DONE";
+            if (total_budget_dec >= 0) {
+                total_budget_dec = 0;
+                state.expenses.map((currentExp) => {
                     if (currentExp.name === action.payload.name && currentExp.cost - action.payload.cost >= 0) {
-                        currentExp.cost =  currentExp.cost - action.payload.cost;
-                        budget = state.budget + action.payload.cost
+                        currentExp.cost -= action.payload.cost;
                     }
-                    return currentExp
-                })
-                action.type = "DONE";
-                return {
-                    ...state,
-                    expenses: [...red_expenses],
-                };
-            case 'DELETE_EXPENSE':
-            action.type = "DONE";
-            state.expenses.map((currentExp)=> {
-                if (currentExp.name === action.payload) {
-                    budget = state.budget + currentExp.cost
-                    currentExp.cost =  0;
-                }
-                return currentExp
-            })
-            action.type = "DONE";
-            return {
-                ...state,
-                budget
-            };
-        case 'SET_BUDGET':
-            action.type = "DONE";
-            state.budget = action.payload;
-
-            return {
-                ...state,
-            };
-        case 'CHG_CURRENCY':
-            action.type = "DONE";
-            state.currency = action.payload;
-            return {
-                ...state
+                    return currentExp;
+                });
+                return { ...state };
+            } else {
+                alert("Cannot decrease the allocation below 0!");
+                return { ...state };
             }
-
+        case 'RED_EXPENSE':
+            const red_expenses = state.expenses.map((currentExp) => {
+                if (currentExp.name === action.payload.name && currentExp.cost - action.payload.cost >= 0) {
+                    currentExp.cost -= action.payload.cost;
+                    budget = state.budget + action.payload.cost;
+                }
+                return currentExp;
+            });
+            action.type = "DONE";
+            return {
+                ...state,
+                expenses: [...red_expenses],
+            };
+        case 'DELETE_EXPENSE':
+            state.expenses.map((currentExp) => {
+                if (currentExp.name === action.payload) {
+                    budget = state.budget + currentExp.cost;
+                    currentExp.cost = 0;
+                }
+                return currentExp;
+            });
+            action.type = "DONE";
+            return { ...state, budget };
+        case 'SET_BUDGET':
+            const totalExpenses = state.expenses.reduce((total, item) => total + item.cost, 0);
+            if (action.payload < totalExpenses) {
+                alert("The budget cannot be less than total expenses.");
+                return { ...state, budget: totalExpenses };
+            } else {
+                return { ...state, budget: action.payload };
+            }
+        case 'CHG_CURRENCY':
+            const updatedExpenses = state.expenses.map((expense) => ({
+                ...expense,
+                cost: convertCurrency(expense.cost, state.currency, action.payload, conversionRates),
+            }));
+            return {
+                ...state,
+                currency: action.payload,
+                expenses: updatedExpenses,
+            };
         default:
             return state;
     }
@@ -95,14 +125,11 @@ export const AppContext = createContext();
 // 3. Provider component - wraps the components we want to give access to the state
 // Accepts the children, which are the nested(wrapped) components
 export const AppProvider = (props) => {
-    // 4. Sets up the app state. takes a reducer, and an initial state
     const [state, dispatch] = useReducer(AppReducer, initialState);
     let remaining = 0;
 
     if (state.expenses) {
-            const totalExpenses = state.expenses.reduce((total, item) => {
-            return (total = total + item.cost);
-        }, 0);
+        const totalExpenses = state.expenses.reduce((total, item) => total + item.cost, 0);
         remaining = state.budget - totalExpenses;
     }
 
